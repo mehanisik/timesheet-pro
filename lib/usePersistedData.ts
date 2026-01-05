@@ -10,6 +10,13 @@ export interface PersistedData {
     lang: 'PL' | 'EN';
     logo: string | null;
     entries: Record<string, { project: string; hours: string }>; // keyed by date
+    templates: Record<
+        string,
+        {
+            name: string;
+            entries: Record<string, { project: string; hours: string }>;
+        }
+    >;
 }
 
 const defaultData: PersistedData = {
@@ -20,6 +27,7 @@ const defaultData: PersistedData = {
     lang: 'PL',
     logo: null,
     entries: {},
+    templates: {},
 };
 
 export function usePersistedData() {
@@ -85,5 +93,53 @@ export function usePersistedData() {
         }
     }, []);
 
-    return { data, isLoaded, saveData, saveEntry, clearData };
+    // Save current entries as a template
+    const saveTemplate = useCallback(
+        (
+            name: string,
+            entries: Record<string, { project: string; hours: string }>,
+        ) => {
+            setData((prev) => {
+                const id = Date.now().toString();
+                const updated = {
+                    ...prev,
+                    templates: {
+                        ...prev.templates,
+                        [id]: { name, entries },
+                    },
+                };
+                try {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                } catch (e) {
+                    console.error('Failed to save template:', e);
+                }
+                return updated;
+            });
+        },
+        [],
+    );
+
+    // Delete a template
+    const deleteTemplate = useCallback((id: string) => {
+        setData((prev) => {
+            const { [id]: _, ...rest } = prev.templates;
+            const updated = { ...prev, templates: rest };
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            } catch (e) {
+                console.error('Failed to delete template:', e);
+            }
+            return updated;
+        });
+    }, []);
+
+    return {
+        data,
+        isLoaded,
+        saveData,
+        saveEntry,
+        clearData,
+        saveTemplate,
+        deleteTemplate,
+    };
 }

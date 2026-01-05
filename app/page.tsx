@@ -77,6 +77,8 @@ export default function TimesheetV2() {
         saveData,
         saveEntry,
         clearData,
+        saveTemplate,
+        deleteTemplate,
     } = usePersistedData();
 
     // Restore persisted data on load
@@ -320,6 +322,15 @@ export default function TimesheetV2() {
         [entries],
     );
 
+    // Check if any entries have been filled (non-empty project or hours)
+    const hasFilledEntries = useMemo(
+        () =>
+            entries.some(
+                (e) => e.project.trim() !== '' || e.hours.trim() !== '',
+            ),
+        [entries],
+    );
+
     return (
         <div className="h-screen bg-background p-4 md:p-8 font-inter selection:bg-primary/20 selection:text-primary overflow-hidden flex flex-col">
             <div className="max-w-5xl mx-auto w-full h-full flex flex-col space-y-8">
@@ -374,9 +385,14 @@ export default function TimesheetV2() {
                             </Button>
                             <Button
                                 onClick={handleDownload}
-                                disabled={isExporting}
+                                disabled={isExporting || !hasFilledEntries}
                                 size="lg"
-                                className="h-12 px-6 bg-primary text-primary-foreground hover:opacity-90 font-bold tracking-tight shadow-lg shadow-primary/20 active:scale-95 transition-all"
+                                className="h-12 px-6 bg-primary text-primary-foreground hover:opacity-90 font-bold tracking-tight shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={
+                                    !hasFilledEntries
+                                        ? t.noEntriesFilled
+                                        : undefined
+                                }
                             >
                                 {isExporting ? (
                                     <IconLoader2 className="w-5 h-5 animate-spin mr-2" />
@@ -389,7 +405,13 @@ export default function TimesheetV2() {
                                 onClick={handleExportExcel}
                                 variant="outline"
                                 size="lg"
-                                className="h-12 px-4 font-bold tracking-tight active:scale-95 transition-all border-2"
+                                disabled={!hasFilledEntries}
+                                className="h-12 px-4 font-bold tracking-tight active:scale-95 transition-all border-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={
+                                    !hasFilledEntries
+                                        ? t.noEntriesFilled
+                                        : undefined
+                                }
                             >
                                 <IconFileSpreadsheet className="w-5 h-5 mr-2" />
                                 {t.exportExcel}
@@ -398,7 +420,13 @@ export default function TimesheetV2() {
                                 onClick={handleExportCSV}
                                 variant="outline"
                                 size="lg"
-                                className="h-12 px-4 font-bold tracking-tight active:scale-95 transition-all border-2"
+                                disabled={!hasFilledEntries}
+                                className="h-12 px-4 font-bold tracking-tight active:scale-95 transition-all border-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={
+                                    !hasFilledEntries
+                                        ? t.noEntriesFilled
+                                        : undefined
+                                }
                             >
                                 <IconFileText className="w-5 h-5 mr-2" />
                                 {t.exportCSV}
@@ -620,6 +648,38 @@ export default function TimesheetV2() {
                             >
                                 <IconCopy className="w-4 h-4 mr-2" />
                                 {t.copyPreviousMonth}
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    const name = prompt('Enter template name:');
+                                    if (name) {
+                                        // Convert current entries to format for template
+                                        const templateEntries: Record<
+                                            string,
+                                            { project: string; hours: string }
+                                        > = {};
+                                        entries.forEach((e) => {
+                                            if (e.project || e.hours) {
+                                                templateEntries[e.date] = {
+                                                    project: e.project,
+                                                    hours: e.hours,
+                                                };
+                                            }
+                                        });
+                                        saveTemplate(name, templateEntries);
+                                    }
+                                }}
+                                variant="outline"
+                                disabled={!hasFilledEntries}
+                                className="h-10 px-4 font-bold transition-all active:scale-95 border-2 disabled:opacity-50"
+                                title={
+                                    !hasFilledEntries
+                                        ? t.noEntriesFilled
+                                        : undefined
+                                }
+                            >
+                                <IconDeviceFloppy className="w-4 h-4 mr-2" />
+                                {t.saveTemplate}
                             </Button>
                             <Button
                                 onClick={() => {

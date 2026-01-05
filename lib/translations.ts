@@ -29,6 +29,9 @@ export interface TranslationStrings {
     exportExcel: string;
     exportCSV: string;
     copyPreviousMonth: string;
+    saveTemplate: string;
+    loadTemplate: string;
+    noEntriesFilled: string;
 }
 
 export const TRANSLATIONS: Record<Language, TranslationStrings> = {
@@ -61,6 +64,9 @@ export const TRANSLATIONS: Record<Language, TranslationStrings> = {
         exportExcel: 'Excel',
         exportCSV: 'CSV',
         copyPreviousMonth: 'Copy Previous',
+        saveTemplate: 'Save Template',
+        loadTemplate: 'Load Template',
+        noEntriesFilled: 'Fill in entries first',
     },
     PL: {
         title: 'Karta Pracy',
@@ -91,5 +97,8 @@ export const TRANSLATIONS: Record<Language, TranslationStrings> = {
         exportExcel: 'Excel',
         exportCSV: 'CSV',
         copyPreviousMonth: 'Kopiuj poprz.',
+        saveTemplate: 'Zapisz szablon',
+        loadTemplate: 'Wczytaj szablon',
+        noEntriesFilled: 'Najpierw wypełnij wpisy',
     },
 };
