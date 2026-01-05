@@ -40,69 +40,115 @@ export async function generatePDF(
 
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Header Branding
-    doc.setFillColor(248, 248, 248);
-    doc.rect(10, 10, pageWidth - 20, 25, 'F');
+    // Calculate statistics
+    const totalHours = data.entries.reduce(
+        (sum, e) => sum + (Number.parseFloat(e.hours) || 0),
+        0,
+    );
+    const workingDays = data.entries.filter(
+        (e) => !e.isWeekend && !e.isHoliday && Number.parseFloat(e.hours) > 0,
+    ).length;
+    const weekendDays = data.entries.filter((e) => e.isWeekend).length;
+    const holidays = data.entries.filter(
+        (e) => e.isHoliday && !e.isWeekend,
+    ).length;
+    const avgHoursPerDay = workingDays > 0 ? totalHours / workingDays : 0;
 
+    // Generate document reference
+    const docRef = `TS-${data.year}${String(data.month).padStart(2, '0')}-${Date.now().toString(36).toUpperCase().slice(-4)}`;
+    const generatedDate = new Date().toLocaleDateString(
+        lang === 'PL' ? 'pl-PL' : 'en-US',
+        {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        },
+    );
+    const monthName = new Date(data.year, data.month - 1).toLocaleDateString(
+        lang === 'PL' ? 'pl-PL' : 'en-US',
+        { month: 'long', year: 'numeric' },
+    );
+
+    // ========== HEADER SECTION ==========
+    // Background
+    doc.setFillColor(25, 25, 25);
+    doc.rect(0, 0, pageWidth, 32, 'F');
+
+    // Logo or company name
     if (data.logo) {
         try {
-            // Calculate aspect ratio and fit logo in the branding box
-            // The box is at (15, 15) roughly, height 12-15
-            doc.addImage(data.logo, 'PNG', 15, 15, 30, 15, undefined, 'FAST');
-        } catch (e) {
-            console.error('Failed to add logo to PDF:', e);
-            // Fallback to text
-            doc.setFontSize(10);
-            doc.setTextColor(100, 100, 100);
-            doc.text('TIMESHEET PRO SERVICES', 15, 22);
+            doc.addImage(data.logo, 'PNG', 12, 8, 28, 16, undefined, 'FAST');
+        } catch {
+            doc.setFontSize(11);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('Roboto', 'bold');
+            doc.text('TIMESHEET PRO', 12, 18);
         }
     } else {
-        // Default text-based branding
-        doc.setFontSize(10);
-        doc.setTextColor(100, 100, 100);
-        doc.text('TIMESHEET PRO SERVICES', 15, 22);
+        doc.setFontSize(11);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('Roboto', 'bold');
+        doc.text('TIMESHEET PRO', 12, 18);
     }
 
-    // Title
-    doc.setFontSize(22);
+    // Title and document info
+    doc.setFontSize(18);
     doc.setFont('Roboto', 'bold');
-    doc.setTextColor(30, 30, 30);
-    doc.text(t.timesheetLabel, pageWidth - 15, 27, { align: 'right' });
+    doc.setTextColor(255, 255, 255);
+    doc.text(t.timesheetLabel, pageWidth - 12, 15, { align: 'right' });
 
-    doc.setFont('Roboto', 'normal');
     doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
+    doc.setFont('Roboto', 'normal');
+    doc.setTextColor(180, 180, 180);
+    doc.text(`Ref: ${docRef}`, pageWidth - 12, 22, { align: 'right' });
+    doc.text(generatedDate, pageWidth - 12, 27, { align: 'right' });
 
-    // Metadata Section
-    doc.setDrawColor(230, 230, 230);
-    doc.setLineWidth(0.1);
-    const startY = 45;
-    const rowH = 10;
+    // ========== INFO CARDS SECTION ==========
+    const cardY = 38;
+    const cardH = 22;
 
-    doc.setFillColor(252, 252, 252);
-    doc.rect(10, startY, pageWidth - 20, rowH * 2, 'F');
+    // Client/Person Card (Left)
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(10, cardY, (pageWidth - 30) / 2, cardH, 2, 2, 'F');
 
-    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    doc.setFont('Roboto', 'normal');
+    doc.text(t.client.toUpperCase(), 15, cardY + 6);
+    doc.text(t.person.toUpperCase(), 15, cardY + 15);
+
     doc.setFontSize(9);
-    doc.setTextColor(40, 40, 40);
-
-    // Row 1
-    doc.text(`${t.client}:`, 15, startY + 6.5);
-    doc.text(`${t.year}:`, 110, startY + 6.5);
-    doc.setFont('Roboto', 'normal');
-    doc.text(data.client || '—', 50, startY + 6.5);
-    doc.text(data.year.toString(), 145, startY + 6.5);
-
-    // Row 2
-    doc.line(10, startY + rowH, pageWidth - 10, startY + rowH);
+    doc.setTextColor(30, 30, 30);
     doc.setFont('Roboto', 'bold');
-    doc.text(`${t.person}:`, 15, startY + 16.5);
-    doc.text(`${t.month}:`, 110, startY + 16.5);
-    doc.setFont('Roboto', 'normal');
-    doc.text(data.person || '—', 50, startY + 16.5);
-    doc.text(data.month.toString(), 145, startY + 16.5);
+    doc.text(data.client || '—', 50, cardY + 6);
+    doc.text(data.person || '—', 50, cardY + 15);
 
-    // Table
+    // Period/Stats Card (Right)
+    const rightCardX = 10 + (pageWidth - 30) / 2 + 10;
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(rightCardX, cardY, (pageWidth - 30) / 2, cardH, 2, 2, 'F');
+
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    doc.setFont('Roboto', 'normal');
+    doc.text(lang === 'PL' ? 'OKRES' : 'PERIOD', rightCardX + 5, cardY + 6);
+
+    doc.setFontSize(9);
+    doc.setTextColor(30, 30, 30);
+    doc.setFont('Roboto', 'bold');
+    doc.text(monthName, rightCardX + 35, cardY + 6);
+
+    // Stats row
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    doc.setFont('Roboto', 'normal');
+    const statsText =
+        lang === 'PL'
+            ? `${workingDays} dni roboczych • ${weekendDays} weekendów • ${holidays} świąt • Śr. ${avgHoursPerDay.toFixed(1)}h/dzień`
+            : `${workingDays} work days • ${weekendDays} weekends • ${holidays} holidays • Avg ${avgHoursPerDay.toFixed(1)}h/day`;
+    doc.text(statsText, rightCardX + 5, cardY + 15);
+
+    // ========== TABLE SECTION ==========
     const tableHeaders = [t.date, t.day, t.project, t.hours];
     const tableData = data.entries.map((e) => {
         let displayDay = e.day;
@@ -120,49 +166,52 @@ export async function generatePDF(
         return [e.date, displayDay, displayProject, e.hours];
     });
 
-    const totalHours = data.entries.reduce(
-        (sum, e) => sum + (parseFloat(e.hours) || 0),
-        0,
-    );
     const entryCount = data.entries.length;
-    // Dynamic font size and padding to force single page
-    const dynamicFontSize = entryCount > 28 ? 7 : 8;
-    const dynamicPadding = entryCount > 28 ? 1 : 1.5;
+    // Dynamic sizing for single page
+    const dynamicFontSize = entryCount > 28 ? 6.5 : entryCount > 25 ? 7 : 7.5;
+    const dynamicPadding = entryCount > 28 ? 0.8 : entryCount > 25 ? 1 : 1.2;
 
     autoTable(doc, {
-        startY: 65,
+        startY: cardY + cardH + 4,
         head: [tableHeaders],
         body: tableData,
         theme: 'grid',
-        margin: { top: 10, bottom: 20 },
+        margin: { left: 10, right: 10, bottom: 28 },
         headStyles: {
-            fillColor: [30, 30, 30],
+            fillColor: [35, 35, 35],
             textColor: [255, 255, 255],
             fontStyle: 'bold',
             halign: 'center',
-            lineWidth: 0.1,
+            fontSize: 7,
+            cellPadding: 2,
         },
         styles: {
             fontSize: dynamicFontSize,
             cellPadding: dynamicPadding,
             lineWidth: 0.1,
-            lineColor: [200, 200, 200],
+            lineColor: [220, 220, 220],
             font: 'Roboto',
         },
         columnStyles: {
-            0: { halign: 'center', cellWidth: 20 },
-            1: { cellWidth: 45 },
+            0: { halign: 'center', cellWidth: 18 },
+            1: { cellWidth: 35, fontSize: dynamicFontSize - 0.5 },
             2: { cellWidth: 'auto' },
-            3: { halign: 'center', cellWidth: 20 },
+            3: { halign: 'center', cellWidth: 16 },
         },
+        alternateRowStyles: {
+            fillColor: [252, 252, 252],
+        },
+        // biome-ignore lint/suspicious/noExplicitAny: jspdf-autotable types
         didParseCell: (cellData: any) => {
             const rowIndex = cellData.row.index;
             const entry = data.entries[rowIndex];
             if (cellData.section === 'body') {
                 if (entry?.isHoliday) {
-                    cellData.cell.styles.fillColor = [240, 255, 240];
+                    cellData.cell.styles.fillColor = [232, 245, 233];
+                    cellData.cell.styles.textColor = [46, 125, 50];
                 } else if (entry?.isWeekend) {
-                    cellData.cell.styles.fillColor = [248, 248, 248];
+                    cellData.cell.styles.fillColor = [245, 245, 245];
+                    cellData.cell.styles.textColor = [150, 150, 150];
                 }
             }
         },
@@ -171,42 +220,60 @@ export async function generatePDF(
                 {
                     content: t.total,
                     colSpan: 3,
-                    styles: { halign: 'right', fontStyle: 'bold' },
+                    styles: { halign: 'right', fontStyle: 'bold', fontSize: 8 },
                 },
                 {
-                    content: totalHours.toFixed(1),
-                    styles: { halign: 'center', fontStyle: 'bold' },
+                    content: `${totalHours.toFixed(1)}h`,
+                    styles: {
+                        halign: 'center',
+                        fontStyle: 'bold',
+                        fontSize: 8,
+                    },
                 },
             ],
         ],
         footStyles: {
-            fillColor: [245, 245, 245],
-            textColor: [0, 0, 0],
+            fillColor: [240, 240, 240],
+            textColor: [30, 30, 30],
             lineWidth: 0.1,
         },
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-
-    // Footer signatures - Ensure they are on the same page
+    // biome-ignore lint/suspicious/noExplicitAny: jspdf types
+    const finalY = (doc as any).lastAutoTable.finalY;
     const pageHeight = doc.internal.pageSize.getHeight();
-    const signatureY = Math.min(finalY, pageHeight - 15);
 
-    doc.setFontSize(8);
+    // ========== FOOTER SECTION ==========
+    // Signature area - positioned at bottom
+    const signatureY = Math.min(finalY + 8, pageHeight - 22);
+
+    // Signature lines
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.3);
+    doc.line(25, signatureY + 6, 85, signatureY + 6);
+    doc.line(125, signatureY + 6, 185, signatureY + 6);
+
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text(t.contractor, 55, signatureY + 11, { align: 'center' });
+    doc.text(t.recipient, 155, signatureY + 11, { align: 'center' });
+
+    // Bottom info bar
+    doc.setFillColor(248, 248, 248);
+    doc.rect(0, pageHeight - 8, pageWidth, 8, 'F');
+
+    doc.setFontSize(6);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Document: ${docRef}`, 10, pageHeight - 3);
     doc.text(
-        '..................................................',
-        55,
-        signatureY,
-        { align: 'center' },
+        `Generated: ${new Date().toISOString()}`,
+        pageWidth / 2,
+        pageHeight - 3,
+        {
+            align: 'center',
+        },
     );
-    doc.text(
-        '..................................................',
-        155,
-        signatureY,
-        { align: 'center' },
-    );
-    doc.text(t.contractor, 55, signatureY + 4, { align: 'center' });
-    doc.text(t.recipient, 155, signatureY + 4, { align: 'center' });
+    doc.text('Page 1 of 1', pageWidth - 10, pageHeight - 3, { align: 'right' });
 
     if (save) {
         doc.save(`timesheet-${data.year}-${data.month}.pdf`);
