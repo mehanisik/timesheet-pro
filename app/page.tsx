@@ -16,7 +16,7 @@ import {
     IconUser,
 } from '@tabler/icons-react';
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -81,9 +81,13 @@ export default function TimesheetV2() {
         deleteTemplate,
     } = usePersistedData();
 
-    // Restore persisted data on load
+    // Track if we've restored data to prevent save loop
+    const hasRestoredRef = useRef(false);
+
+    // Restore persisted data on load (only once)
     useEffect(() => {
-        if (isLoaded) {
+        if (isLoaded && !hasRestoredRef.current) {
+            hasRestoredRef.current = true;
             setClient(persistedData.client);
             setPerson(persistedData.person);
             setDefaultProj(persistedData.defaultProj);
@@ -122,9 +126,9 @@ export default function TimesheetV2() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isPreviewOpen]);
 
-    // Auto-save form fields
+    // Auto-save form fields (only after initial restore)
     useEffect(() => {
-        if (isLoaded) {
+        if (isLoaded && hasRestoredRef.current) {
             saveData({ client, person, defaultProj, defaultHours, lang, logo });
         }
     }, [
