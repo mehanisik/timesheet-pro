@@ -4,16 +4,16 @@ A minimalist, professional timesheet application built with Next.js 15 and React
 
 ## Features
 
-- 📋 **Monthly Timesheet Management** - Track daily hours with project assignments
-- 🇵🇱 **Polish Holiday Support** - Automatic Polish public holiday detection
-- 🌍 **Multi-language** - Polish and English interface
-- 📄 **PDF Export** - Generate professional single-page PDF timesheets
-- 📊 **Excel/CSV Export** - Export data to Excel or CSV formats
-- 🖼️ **Custom Logo** - Upload your company logo for personalized PDFs
-- 💾 **Data Persistence** - Auto-save to localStorage, restore on reload
-- ⌨️ **Keyboard Shortcuts** - Ctrl+S (download), Ctrl+P (preview), Ctrl+Shift+A (apply all)
-- 📋 **Copy Previous Month** - Copy entries from previous month
-- 🌙 **Dark Mode** - Clean dark theme with sharp, minimalist design
+- **Monthly Timesheet Management** - Track daily hours with project assignments
+- **Polish Holiday Support** - Automatic Polish public holiday detection
+- **Multi-language** - Polish and English interface
+- **PDF Export** - Generate professional single-page PDF timesheets
+- **Excel/CSV Export** - Export data to Excel or CSV formats
+- **Custom Logo** - Upload your company logo for personalized PDFs
+- **Data Persistence** - Auto-save to localStorage, restore on reload
+- **Keyboard Shortcuts** - Ctrl+S (download), Ctrl+P (preview), Ctrl+Shift+A (apply all)
+- **Copy Previous Month** - Copy entries from previous month
+- **Dark Mode** - Clean dark theme with sharp, minimalist design
 
 ## Tech Stack
 

@@ -9,6 +9,8 @@ export interface PersistedData {
     defaultHours: string;
     lang: 'PL' | 'EN';
     logo: string | null;
+    holidayBank: string;
+    customRef?: string;
     entries: Record<string, { project: string; hours: string }>; // keyed by date
     templates: Record<
         string,
@@ -26,6 +28,8 @@ const defaultData: PersistedData = {
     defaultHours: '8',
     lang: 'PL',
     logo: null,
+    holidayBank: 'PL',
+    customRef: '',
     entries: {},
     templates: {},
 };

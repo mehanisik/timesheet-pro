@@ -19,6 +19,7 @@ export interface TimesheetData {
     month: number;
     entries: TimesheetEntry[];
     logo?: string;
+    customRef?: string;
 }
 
 export async function generatePDF(
@@ -45,17 +46,8 @@ export async function generatePDF(
         (sum, e) => sum + (Number.parseFloat(e.hours) || 0),
         0,
     );
-    const workingDays = data.entries.filter(
-        (e) => !e.isWeekend && !e.isHoliday && Number.parseFloat(e.hours) > 0,
-    ).length;
-    const weekendDays = data.entries.filter((e) => e.isWeekend).length;
-    const holidays = data.entries.filter(
-        (e) => e.isHoliday && !e.isWeekend,
-    ).length;
-    const avgHoursPerDay = workingDays > 0 ? totalHours / workingDays : 0;
 
-
-    const docRef = `TS-${data.year}${String(data.month).padStart(2, '0')}-${Date.now().toString(36).toUpperCase().slice(-4)}`;
+    const docRef = data.customRef || `TS-${data.year}${String(data.month).padStart(2, '0')}-${Date.now().toString(36).toUpperCase().slice(-4)}`;
     const generatedDate = new Date().toLocaleDateString(
         lang === 'PL' ? 'pl-PL' : 'en-US',
         {

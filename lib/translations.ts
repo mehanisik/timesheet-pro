@@ -32,6 +32,7 @@ export interface TranslationStrings {
     saveTemplate: string;
     loadTemplate: string;
     noEntriesFilled: string;
+    documentRef: string;
 }
 
 export const TRANSLATIONS: Record<Language, TranslationStrings> = {
@@ -67,6 +68,7 @@ export const TRANSLATIONS: Record<Language, TranslationStrings> = {
         saveTemplate: 'Save template',
         loadTemplate: 'Load template',
         noEntriesFilled: 'Fill in entries first',
+        documentRef: 'Document Ref',
     },
     PL: {
         title: 'Karta czasu pracy',
@@ -100,6 +102,7 @@ export const TRANSLATIONS: Record<Language, TranslationStrings> = {
         saveTemplate: 'Zapisz szablon',
         loadTemplate: 'Wczytaj szablon',
         noEntriesFilled: 'Najpierw wypełnij wpisy',
+        documentRef: 'Numer Ref.',
     }
 
 };

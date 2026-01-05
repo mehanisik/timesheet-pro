@@ -1,7 +1,7 @@
 'use client';
 
 import {
-    IconBuilding,
+
     IconCalendar,
     IconCopy,
     IconDeviceFloppy,
@@ -13,13 +13,15 @@ import {
     IconPhoto,
     IconRocket,
     IconTrash,
-    IconUser,
+
 } from '@tabler/icons-react';
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Badge } from '@/components/ui/badge';
+import { Suspense, useEffect, useRef, useState } from 'react';
+
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { TimesheetGrid } from '@/components/TimesheetGrid';
+import { getMonthDays } from '@/lib/timesheetUtils';
+
 import {
     Dialog,
     DialogContent,
@@ -36,39 +38,33 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import { generateCSV, generateExcel } from '@/lib/excelGenerator';
-import { fetchHolidays } from '@/lib/holidayService';
-import {
-    generatePDF,
     type TimesheetData,
     type TimesheetEntry,
 } from '@/lib/pdfGenerator';
 import { type Language, TRANSLATIONS } from '@/lib/translations';
 import { usePersistedData } from '@/lib/usePersistedData';
-import { cn } from '@/lib/utils';
+
 
 export default function TimesheetV2() {
-    const [lang, setLang] = useState<Language>('PL');
+    const [lang, setLang] = useState<Language>('EN');
     const [year, setYear] = useState(new Date().getFullYear());
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [client, setClient] = useState('');
     const [person, setPerson] = useState('');
+    const [customRef, setCustomRef] = useState('');
     const [defaultProj, setDefaultProj] = useState('');
     const [defaultHours, setDefaultHours] = useState('8');
-    const [entries, setEntries] = useState<TimesheetEntry[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    // const [entries] state removed in favor of persistedData.entries
     const [isExporting, setIsExporting] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [logo, setLogo] = useState<string | null>(null);
+    const [holidayBank, setHolidayBank] = useState<string>('PL');
+
+    // React 19 Resource Pattern - Compiler handles memoization
+    const daysPromise = getMonthDays(year, month, holidayBank, lang);
 
     // Persistence hook
     const {
@@ -90,15 +86,211 @@ export default function TimesheetV2() {
             hasRestoredRef.current = true;
             setClient(persistedData.client);
             setPerson(persistedData.person);
+            setCustomRef(persistedData.customRef || '');
             setDefaultProj(persistedData.defaultProj);
             setDefaultHours(persistedData.defaultHours);
             setLang(persistedData.lang);
+            setLang(persistedData.lang);
             setLogo(persistedData.logo);
+            setHolidayBank(persistedData.holidayBank || 'PL');
         }
     }, [isLoaded, persistedData]);
 
+
+
+    // Auto-save form fields (only after initial restore)
+    useEffect(() => {
+        if (isLoaded && hasRestoredRef.current) {
+            saveData({ client, person, customRef, defaultProj, defaultHours, lang, logo, holidayBank });
+        }
+    }, [
+        client,
+        person,
+        customRef,
+        defaultProj,
+        defaultHours,
+        lang,
+        logo,
+        holidayBank,
+        isLoaded,
+        saveData,
+    ]);
+
+    const t = TRANSLATIONS[lang];
+
+
+
+    const handleApplyAll = async () => {
+        const days = await daysPromise;
+        const newEntries = { ...persistedData.entries };
+        let changed = false;
+
+        for (const day of days) {
+            if (!day.isWeekend && !day.isHoliday) {
+                const current = newEntries[day.date];
+                if (!current?.project || !current?.hours) {
+                    newEntries[day.date] = {
+                        project: defaultProj || current?.project || '',
+                        hours: defaultHours || current?.hours || ''
+                    };
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed) {
+            saveData({ entries: newEntries });
+        }
+    };
+
+    const handleCopyPreviousMonth = async () => {
+        // Calculate previous month
+        let prevMonth = month - 1;
+        let prevYear = year;
+        if (prevMonth < 1) {
+            prevMonth = 12;
+            prevYear = year - 1;
+        }
+
+        const currentDays = await daysPromise;
+        const newEntries = { ...persistedData.entries };
+        let changed = false;
+
+        for (const day of currentDays) {
+            if (!day.isWeekend && !day.isHoliday) {
+                // Find matching day from previous month
+                const dayNum = parseInt(day.date.split('-')[2], 10);
+                const prevDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                const prevEntry = persistedData.entries[prevDate];
+
+                if (prevEntry) {
+                    newEntries[day.date] = {
+                        project: prevEntry.project,
+                        hours: prevEntry.hours,
+                    };
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed) {
+            saveData({ entries: newEntries });
+        }
+    };
+
+    const handleEntryChange = (
+        date: string,
+        field: 'project' | 'hours',
+        value: string,
+    ) => {
+        // We can just call saveEntry because we have the date
+        // But saveEntry needs the OTHER field too?
+        // Wait, saveEntry implementation:
+        // setData(prev => ({ ...prev, entries: { ...prev.entries, [date]: { project, hours } } }))
+        // It overwrites the whole entry object for that date.
+        // So I must provide BOTH fields every time.
+        // I need to look up current value.
+
+        const current = persistedData.entries[date] || { project: '', hours: '' };
+        const project = field === 'project' ? value : current.project;
+        const hours = field === 'hours' ? value : current.hours;
+
+        saveEntry(date, project, hours);
+    };
+
+    const getFullEntries = async () => {
+        const days = await daysPromise;
+        return days.map(d => {
+            const userEntry = persistedData.entries[d.date];
+            return {
+                date: d.date,
+                day: d.dayName + (d.holidayName ? ` (${d.holidayName})` : ''),
+                project: userEntry?.project || '',
+                hours: userEntry?.hours || '',
+                isWeekend: d.isWeekend,
+                isHoliday: d.isHoliday
+            };
+        });
+    };
+
+    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setLogo(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleRemoveLogo = () => {
+        setLogo(null);
+    };
+
+    const handleDownload = async () => {
+        setIsExporting(true);
+        try {
+            const entries = await getFullEntries();
+            const data: TimesheetData = {
+                client,
+                person,
+                year,
+                month,
+                entries,
+                ...(logo ? { logo } : {}),
+            };
+            const { generatePDF } = await import('@/lib/pdfGenerator');
+            await generatePDF(data, lang, true);
+        } catch (error) {
+            console.error('PDF Export failed:', error);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleExportExcel = async () => {
+        const entries = await getFullEntries();
+        const data: TimesheetData = { client, person, year, month, entries };
+        const { generateExcel } = await import('@/lib/excelGenerator');
+        generateExcel(data, lang);
+    };
+
+    const handleExportCSV = async () => {
+        const entries = await getFullEntries();
+        const data: TimesheetData = { client, person, year, month, entries };
+        const { generateCSV } = await import('@/lib/excelGenerator');
+        generateCSV(data, lang);
+    };
+
+    const handlePreview = async () => {
+        setIsExporting(true);
+        try {
+            const entries = await getFullEntries();
+            const data: TimesheetData = {
+                client,
+                person,
+                year,
+                month,
+                entries,
+                ...(logo ? { logo } : {}),
+            };
+            const { generatePDF } = await import('@/lib/pdfGenerator');
+            const blob = await generatePDF(data, lang, false);
+            if (blob) {
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                const url = URL.createObjectURL(blob);
+                setPreviewUrl(url);
+                setIsPreviewOpen(true);
+            }
+        } catch (error) {
+            console.error('PDF Preview failed:', error);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     // Keyboard shortcuts
-    // biome-ignore lint/correctness/useExhaustiveDependencies: handlers are stable or deliberately use current state
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             // Ctrl+S - Download PDF
@@ -124,703 +316,283 @@ export default function TimesheetV2() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isPreviewOpen]);
+    }, [handleDownload, handlePreview, handleApplyAll, isPreviewOpen]);
 
-    // Auto-save form fields (only after initial restore)
-    useEffect(() => {
-        if (isLoaded && hasRestoredRef.current) {
-            saveData({ client, person, defaultProj, defaultHours, lang, logo });
-        }
-    }, [
-        client,
-        person,
-        defaultProj,
-        defaultHours,
-        lang,
-        logo,
-        isLoaded,
-        saveData,
-    ]);
-
-    const t = TRANSLATIONS[lang];
-
-    // Initialize/Update Entries
-    const updateEntries = useCallback(async () => {
-        setIsLoading(true);
-        const fetchedHolidays = await fetchHolidays(year);
-
-        const daysInMonth = new Date(year, month, 0).getDate();
-        const newEntries: TimesheetEntry[] = [];
-
-        for (let day = 1; day <= daysInMonth; day++) {
-            const date = new Date(year, month - 1, day, 12, 0, 0);
-            const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-            const holidayName = fetchedHolidays[isoDate];
-            const isHoliday = !!holidayName;
-
-            newEntries.push({
-                date: isoDate,
-                day:
-                    date.toLocaleDateString(lang === 'PL' ? 'pl-PL' : 'en-US', {
-                        weekday: 'long',
-                    }) + (isHoliday ? ` (${holidayName})` : ''),
-                project: '',
-                hours: '',
-                isWeekend,
-                isHoliday,
-            });
-        }
-
-        // Restore persisted entry data
-        const restoredEntries = newEntries.map((entry) => {
-            const saved = persistedData.entries[entry.date];
-            if (saved) {
-                return { ...entry, project: saved.project, hours: saved.hours };
-            }
-            return entry;
-        });
-
-        setEntries(restoredEntries);
-        setIsLoading(false);
-    }, [year, month, lang, persistedData.entries]);
-
-    useEffect(() => {
-        updateEntries();
-    }, [updateEntries]);
-
-    const handleApplyAll = () => {
-        setEntries((prev) =>
-            prev.map((e) => {
-                if (!e.isWeekend && !e.isHoliday) {
-                    return {
-                        ...e,
-                        project: defaultProj || e.project,
-                        hours: defaultHours || e.hours,
-                    };
-                }
-                return e;
-            }),
-        );
-    };
-
-    const handleCopyPreviousMonth = () => {
-        // Calculate previous month
-        let prevMonth = month - 1;
-        let prevYear = year;
-        if (prevMonth < 1) {
-            prevMonth = 12;
-            prevYear = year - 1;
-        }
-
-        // Get entries from previous month from persisted data
-        setEntries((prev) =>
-            prev.map((entry) => {
-                // Find matching day from previous month
-                const day = parseInt(entry.date.split('-')[2], 10);
-                const prevDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const prevEntry = persistedData.entries[prevDate];
-
-                if (prevEntry && !entry.isWeekend && !entry.isHoliday) {
-                    // Save to persistence
-                    saveEntry(entry.date, prevEntry.project, prevEntry.hours);
-                    return {
-                        ...entry,
-                        project: prevEntry.project,
-                        hours: prevEntry.hours,
-                    };
-                }
-                return entry;
-            }),
-        );
-    };
-
-    const handleEntryChange = (
-        index: number,
-        field: keyof TimesheetEntry,
-        value: string,
-    ) => {
-        setEntries((prev) => {
-            const updated = [...prev];
-            updated[index] = { ...updated[index], [field]: value };
-
-            // Persist entry data
-            const entry = updated[index];
-            saveEntry(entry.date, entry.project, entry.hours);
-
-            return updated;
-        });
-    };
-
-    const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setLogo(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleRemoveLogo = () => {
-        setLogo(null);
-    };
-
-    const handleDownload = async () => {
-        setIsExporting(true);
-        try {
-            const data: TimesheetData = {
-                client,
-                person,
-                year,
-                month,
-                entries,
-                logo: logo || undefined,
-            };
-            await generatePDF(data, lang, true);
-        } catch (error) {
-            console.error('PDF Export failed:', error);
-        } finally {
-            setIsExporting(false);
-        }
-    };
-
-    const handleExportExcel = () => {
-        const data: TimesheetData = { client, person, year, month, entries };
-        generateExcel(data, lang);
-    };
-
-    const handleExportCSV = () => {
-        const data: TimesheetData = { client, person, year, month, entries };
-        generateCSV(data, lang);
-    };
-
-    const handlePreview = async () => {
-        setIsExporting(true);
-        try {
-            const data: TimesheetData = {
-                client,
-                person,
-                year,
-                month,
-                entries,
-                logo: logo || undefined,
-            };
-            const blob = await generatePDF(data, lang, false);
-            if (blob) {
-                if (previewUrl) URL.revokeObjectURL(previewUrl);
-                const url = URL.createObjectURL(blob);
-                setPreviewUrl(url);
-                setIsPreviewOpen(true);
-            }
-        } catch (error) {
-            console.error('PDF Preview failed:', error);
-        } finally {
-            setIsExporting(false);
-        }
-    };
-
-    const totalHours = useMemo(
-        () => entries.reduce((sum, e) => sum + (parseFloat(e.hours) || 0), 0),
-        [entries],
-    );
+    const totalHours = Object.values(persistedData.entries).reduce((sum, e) => sum + (parseFloat(e.hours) || 0), 0);
 
     // Check if any entries have been filled (non-empty project or hours)
-    const hasFilledEntries = useMemo(
-        () =>
-            entries.some(
-                (e) => e.project.trim() !== '' || e.hours.trim() !== '',
-            ),
-        [entries],
+    const hasFilledEntries = Object.values(persistedData.entries).some(
+        (e) => e.project.trim() !== '' || e.hours.trim() !== '',
     );
 
     return (
         <div className="h-screen bg-background p-4 md:p-8 font-inter selection:bg-primary/20 selection:text-primary overflow-hidden flex flex-col">
             <div className="max-w-5xl mx-auto w-full h-full flex flex-col space-y-8">
-                {/* Header - Simple & Clean with Actions at the Top */}
-                <header className="flex flex-col md:flex-row justify-between items-center border-b-2 border-border pb-6 gap-8 shrink-0">
-                    <div className="flex items-center gap-5">
-                        <div className="bg-primary p-3 shadow-xl shadow-primary/10">
-                            <IconCalendar className="w-8 h-8 text-primary-foreground" />
+                {/* Modern Header */}
+                <header className="flex flex-col lg:flex-row gap-4 items-center justify-between px-1 py-2 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-primary/10 p-2 rounded-lg text-primary">
+                            <IconCalendar className="w-6 h-6" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-black tracking-tighter text-foreground leading-none">
+                            <h1 className="text-xl font-bold tracking-tight leading-none">
                                 {t.title}
                             </h1>
-                            <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-[0.3em] mt-1.5">
+                            <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
                                 {t.branding}
                             </p>
                         </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
-                        <div className="text-center sm:text-right">
-                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                                {t.total}
-                            </p>
-                            <p className="text-4xl font-black text-foreground tabular-nums">
-                                {totalHours.toFixed(1)}{' '}
-                                <span className="text-sm font-medium text-muted-foreground">
-                                    HRS
-                                </span>
-                            </p>
+                    <div className="flex items-center gap-2 bg-muted/30 p-1 rounded-lg border border-border/40">
+                        {/* Total Hours Badge */}
+                        <div className="px-3 py-1 bg-background rounded-md shadow-sm border border-border/50 flex flex-col items-center min-w-[80px]">
+                            <span className="text-[10px] uppercase text-muted-foreground font-semibold leading-none mb-0.5">{t.total}</span>
+                            <span className="text-lg font-bold tabular-nums leading-none text-foreground">{totalHours.toFixed(1)}</span>
                         </div>
 
-                        <Separator
-                            orientation="vertical"
-                            className="h-12 hidden sm:block"
-                        />
+                        <Separator orientation="vertical" className="h-8 mx-1" />
 
-                        <div className="flex gap-2">
-                            <Button
-                                onClick={handlePreview}
-                                disabled={isExporting}
-                                variant="outline"
-                                size="lg"
-                                className="h-12 px-6 font-bold tracking-tight active:scale-95 transition-all border-2"
-                            >
-                                {isExporting ? (
-                                    <IconLoader2 className="w-5 h-5 animate-spin mr-2" />
-                                ) : (
-                                    <IconEye className="w-5 h-5 mr-2" />
-                                )}
-                                PREVIEW
-                            </Button>
-                            <Button
-                                onClick={handleDownload}
-                                disabled={isExporting || !hasFilledEntries}
-                                size="lg"
-                                className="h-12 px-6 bg-primary text-primary-foreground hover:opacity-90 font-bold tracking-tight shadow-lg shadow-primary/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                title={
-                                    !hasFilledEntries
-                                        ? t.noEntriesFilled
-                                        : undefined
-                                }
-                            >
-                                {isExporting ? (
-                                    <IconLoader2 className="w-5 h-5 animate-spin mr-2" />
-                                ) : (
-                                    <IconDownload className="w-5 h-5 mr-2" />
-                                )}
-                                {t.download}
-                            </Button>
+                        {/* Primary Actions */}
+                        <Button
+                            onClick={handlePreview}
+                            disabled={isExporting}
+                            variant="secondary"
+                            size="sm"
+                            className="h-9 text-xs font-semibold"
+                        >
+                            {isExporting ? <IconLoader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <IconEye className="w-3.5 h-3.5 mr-2" />}
+                            {t.preview}
+                        </Button>
+                        <Button
+                            onClick={handleDownload}
+                            disabled={isExporting || !hasFilledEntries}
+                            size="sm"
+                            className="h-9 text-xs font-semibold"
+                        >
+                            {isExporting ? <IconLoader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <IconDownload className="w-3.5 h-3.5 mr-2" />}
+                            {t.download}
+                        </Button>
+
+                        {/* Secondary Actions Menu or Inline */}
+                        <div className="flex gap-1 ml-1">
                             <Button
                                 onClick={handleExportExcel}
                                 variant="outline"
-                                size="lg"
-                                disabled={!hasFilledEntries}
-                                className="h-12 px-4 font-bold tracking-tight active:scale-95 transition-all border-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                title={
-                                    !hasFilledEntries
-                                        ? t.noEntriesFilled
-                                        : undefined
-                                }
+                                size="icon"
+                                className="w-9 h-9"
+                                title={t.exportExcel}
                             >
-                                <IconFileSpreadsheet className="w-5 h-5 mr-2" />
-                                {t.exportExcel}
+                                <IconFileSpreadsheet className="w-4 h-4 text-muted-foreground" />
                             </Button>
                             <Button
                                 onClick={handleExportCSV}
                                 variant="outline"
-                                size="lg"
-                                disabled={!hasFilledEntries}
-                                className="h-12 px-4 font-bold tracking-tight active:scale-95 transition-all border-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                title={
-                                    !hasFilledEntries
-                                        ? t.noEntriesFilled
-                                        : undefined
-                                }
+                                size="icon"
+                                className="w-9 h-9"
+                                title={t.exportCSV}
                             >
-                                <IconFileText className="w-5 h-5 mr-2" />
-                                {t.exportCSV}
+                                <IconFileText className="w-4 h-4 text-muted-foreground" />
                             </Button>
                         </div>
                     </div>
                 </header>
 
-                {/* Configuration Area - Integrated & Minimal */}
-                <Card className="border-border bg-card shadow-sm border-2 shrink-0">
-                    <CardContent className="p-6 space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest leading-none">
-                                        {t.logo}
-                                    </Label>
-                                    <div className="flex items-center gap-3 h-10">
-                                        {logo ? (
-                                            <div className="relative group shrink-0 w-10 h-10 border-2 border-border overflow-hidden bg-muted flex items-center justify-center">
-                                                <img
-                                                    src={logo}
-                                                    alt="Company Logo"
-                                                    className="w-full h-full object-contain"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={handleRemoveLogo}
-                                                    className="absolute inset-0 bg-primary/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
-                                                >
-                                                    <IconTrash className="w-4 h-4 text-primary-foreground" />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="relative shrink-0 w-10 h-10 border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors cursor-pointer overflow-hidden">
-                                                <IconPhoto className="w-4 h-4" />
-                                                <input
-                                                    type="file"
-                                                    accept="image/*"
-                                                    onChange={handleLogoUpload}
-                                                    className="absolute inset-0 opacity-0 cursor-pointer"
-                                                />
-                                            </div>
-                                        )}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[8px] text-muted-foreground uppercase font-black truncate">
-                                                PNG/JPG MAX 300KB
-                                            </p>
-                                        </div>
+                {/* Compact Control Panel */}
+                <div className="flex flex-col gap-3 bg-muted/20 border border-border/60 rounded-xl p-3 shadow-sm shrink-0">
+                    {/* Row 1: Identity & Context */}
+                    <div className="grid grid-cols-12 gap-3 items-end">
+                        {/* Logo Upload - Compact */}
+                        <div className="col-span-12 sm:col-span-1 flex flex-col gap-1.5">
+                            <Label className="text-[10px] font-medium text-muted-foreground uppercase">{t.logo}</Label>
+                            <div className="relative">
+                                {logo ? (
+                                    <div className="w-9 h-9 relative group rounded-md border overflow-hidden bg-background">
+                                        <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+                                        <button onClick={handleRemoveLogo} className="absolute inset-0 bg-destructive/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                                            <IconTrash className="w-4 h-4 text-white" />
+                                        </button>
                                     </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest leading-none">
-                                        {t.client}
-                                    </Label>
-                                    <div className="relative">
-                                        <IconBuilding className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                                        <Input
-                                            value={client}
-                                            onChange={(e) =>
-                                                setClient(e.target.value)
-                                            }
-                                            className="pl-10 h-10 bg-background border-2"
-                                            placeholder="e.g. Acme Corp"
-                                        />
+                                ) : (
+                                    <div className="w-9 h-9 rounded-md border border-dashed border-muted-foreground/30 hover:border-primary/50 hover:bg-primary/5 transition-colors flex items-center justify-center cursor-pointer relative">
+                                        <IconPhoto className="w-4 h-4 text-muted-foreground" />
+                                        <input type="file" accept="image/*" onChange={handleLogoUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
                                     </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest leading-none">
-                                        {t.person}
-                                    </Label>
-                                    <div className="relative">
-                                        <IconUser className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                                        <Input
-                                            value={person}
-                                            onChange={(e) =>
-                                                setPerson(e.target.value)
-                                            }
-                                            className="pl-10 h-10 bg-background border-2"
-                                            placeholder="e.g. John Doe"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest leading-none">
-                                        {t.lang}
-                                    </Label>
-                                    <Select
-                                        value={lang}
-                                        onValueChange={(v) =>
-                                            v && setLang(v as Language)
-                                        }
-                                    >
-                                        <SelectTrigger className="h-10 bg-background border-2">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="PL">
-                                                Polski
-                                            </SelectItem>
-                                            <SelectItem value="EN">
-                                                English
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest leading-none">
-                                        {t.year}
-                                    </Label>
-                                    <Select
-                                        value={year.toString()}
-                                        onValueChange={(v) =>
-                                            v && setYear(parseInt(v, 10))
-                                        }
-                                    >
-                                        <SelectTrigger className="h-10 bg-background border-2">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {[2024, 2025, 2026, 2027].map(
-                                                (y) => (
-                                                    <SelectItem
-                                                        key={y}
-                                                        value={y.toString()}
-                                                    >
-                                                        {y}
-                                                    </SelectItem>
-                                                ),
-                                            )}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest leading-none">
-                                        {t.month}
-                                    </Label>
-                                    <Select
-                                        value={month.toString()}
-                                        onValueChange={(v) =>
-                                            v && setMonth(parseInt(v, 10))
-                                        }
-                                    >
-                                        <SelectTrigger className="h-10 bg-background border-2">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {Array.from(
-                                                { length: 12 },
-                                                (_, i) => i + 1,
-                                            ).map((m) => (
-                                                <SelectItem
-                                                    key={m}
-                                                    value={m.toString()}
-                                                >
-                                                    {new Date(
-                                                        2000,
-                                                        m - 1,
-                                                    ).toLocaleString(
-                                                        lang === 'PL'
-                                                            ? 'pl-PL'
-                                                            : 'en-US',
-                                                        { month: 'short' },
-                                                    )}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                                )}
                             </div>
                         </div>
 
-                        <Separator className="opacity-50" />
+                        {/* Client */}
+                        <div className="col-span-6 sm:col-span-3 lg:col-span-3 space-y-1.5">
+                            <Label htmlFor="client" className="text-xs font-medium text-muted-foreground">{t.client}</Label>
+                            <Input
+                                id="client"
+                                value={client}
+                                onChange={e => setClient(e.target.value)}
+                                className="h-9 text-sm bg-background"
+                                placeholder="Client Name"
+                            />
+                        </div>
 
-                        <div className="flex flex-col md:flex-row items-end gap-8">
-                            <div className="flex-1 grid grid-cols-2 gap-6 w-full">
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest leading-none">
-                                        Default Project
-                                    </Label>
-                                    <Input
-                                        value={defaultProj}
-                                        onChange={(e) =>
-                                            setDefaultProj(e.target.value)
-                                        }
-                                        className="h-10 bg-background border-2"
-                                        placeholder="Internal Development"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest leading-none">
-                                        Default Hours
-                                    </Label>
-                                    <Input
-                                        value={defaultHours}
-                                        onChange={(e) =>
-                                            setDefaultHours(e.target.value)
-                                        }
-                                        className="h-10 bg-background border-2"
-                                        placeholder="8"
-                                    />
-                                </div>
+                        {/* Person */}
+                        <div className="col-span-6 sm:col-span-3 lg:col-span-3 space-y-1.5">
+                            <Label htmlFor="person" className="text-xs font-medium text-muted-foreground">{t.person}</Label>
+                            <Input
+                                id="person"
+                                value={person}
+                                onChange={e => setPerson(e.target.value)}
+                                className="h-9 text-sm bg-background"
+                                placeholder="Consultant Name"
+                            />
+                        </div>
+
+                        {/* Document Ref */}
+                        <div className="col-span-6 sm:col-span-2 space-y-1.5">
+                            <Label htmlFor="ref" className="text-xs font-medium text-muted-foreground">{t.documentRef}</Label>
+                            <Input
+                                id="ref"
+                                value={customRef}
+                                onChange={e => setCustomRef(e.target.value)}
+                                className="h-9 text-sm bg-background font-mono text-[11px]"
+                                placeholder="Auto-gen"
+                            />
+                        </div>
+
+                        {/* Year/Month/Lang Group */}
+                        <div className="col-span-6 sm:col-span-3 flex gap-2">
+                            <div className="space-y-1.5 flex-1">
+                                <Label className="text-xs font-medium text-muted-foreground">{t.year}</Label>
+                                <Select value={year.toString()} onValueChange={v => v && setYear(parseInt(v))}>
+                                    <SelectTrigger className="h-9 bg-background"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {[2024, 2025, 2026, 2027].map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
                             </div>
-                            <Button
-                                onClick={handleApplyAll}
-                                variant="secondary"
-                                className="h-10 px-6 font-bold transition-all active:scale-95 w-full md:w-auto border-2"
-                            >
-                                <IconRocket className="w-5 h-5 mr-2" />
+                            <div className="space-y-1.5 flex-1">
+                                <Label className="text-xs font-medium text-muted-foreground">{t.month}</Label>
+                                <Select value={month.toString()} onValueChange={v => v && setMonth(parseInt(v))}>
+                                    <SelectTrigger className="h-9 bg-background"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                                            <SelectItem key={m} value={m.toString()}>
+                                                {new Date(2000, m - 1).toLocaleString(lang === 'PL' ? 'pl-PL' : 'en-US', { month: 'short' })}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5 w-[70px]">
+                                <Label className="text-xs font-medium text-muted-foreground">{t.lang}</Label>
+                                <Select value={lang} onValueChange={v => setLang(v as Language)}>
+                                    <SelectTrigger className="h-9 bg-background"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="PL">PL</SelectItem>
+                                        <SelectItem value="EN">EN</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5 w-[70px]">
+                                <Label className="text-xs font-medium text-muted-foreground">Bank</Label>
+                                <Select value={holidayBank} onValueChange={v => v && setHolidayBank(v)}>
+                                    <SelectTrigger className="h-9 bg-background"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        {['PL', 'DE', 'GB', 'US', 'FR', 'ES', 'IT', 'NL', 'BE'].map(code => (
+                                            <SelectItem key={code} value={code}>{code}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <Separator className="bg-border/50" />
+
+                    {/* Row 2: Tools & Actions */}
+                    <div className="flex flex-col sm:flex-row items-end gap-3 justify-between">
+                        <div className="flex items-end gap-3 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                            <div className="space-y-1.5 min-w-[140px]">
+                                <Label className="text-xs font-medium text-muted-foreground">Default Project</Label>
+                                <Input
+                                    value={defaultProj}
+                                    onChange={e => setDefaultProj(e.target.value)}
+                                    className="h-9 text-sm bg-background"
+                                    placeholder="e.g. Internal"
+                                />
+                            </div>
+                            <div className="space-y-1.5 w-[80px]">
+                                <Label className="text-xs font-medium text-muted-foreground">Hours</Label>
+                                <Input
+                                    value={defaultHours}
+                                    onChange={e => setDefaultHours(e.target.value)}
+                                    className="h-9 text-sm bg-background text-center"
+                                    placeholder="8"
+                                />
+                            </div>
+                            <Button onClick={handleApplyAll} variant="secondary" size="sm" className="h-9 px-3 text-xs font-medium shrink-0">
+                                <IconRocket className="w-3.5 h-3.5 mr-1.5" />
                                 {t.apply}
                             </Button>
-                            <Button
-                                onClick={handleCopyPreviousMonth}
-                                variant="outline"
-                                className="h-10 px-4 font-bold transition-all active:scale-95 border-2"
-                            >
-                                <IconCopy className="w-4 h-4 mr-2" />
+                            <Button onClick={handleCopyPreviousMonth} variant="ghost" size="sm" className="h-9 px-3 text-xs font-medium shrink-0 border border-transparent hover:border-border/50">
+                                <IconCopy className="w-3.5 h-3.5 mr-1.5" />
                                 {t.copyPreviousMonth}
                             </Button>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
                             <Button
                                 onClick={() => {
-                                    const name = prompt('Enter template name:');
+                                    const name = prompt('Template name:');
                                     if (name) {
-                                        // Convert current entries to format for template
-                                        const templateEntries: Record<
-                                            string,
-                                            { project: string; hours: string }
-                                        > = {};
-                                        entries.forEach((e) => {
-                                            if (e.project || e.hours) {
-                                                templateEntries[e.date] = {
-                                                    project: e.project,
-                                                    hours: e.hours,
-                                                };
-                                            }
-                                        });
-                                        saveTemplate(name, templateEntries);
+                                        if (name) {
+                                            saveTemplate(name, persistedData.entries);
+                                        }
                                     }
                                 }}
                                 variant="outline"
+                                size="sm"
+                                className="h-9 text-xs"
                                 disabled={!hasFilledEntries}
-                                className="h-10 px-4 font-bold transition-all active:scale-95 border-2 disabled:opacity-50"
-                                title={
-                                    !hasFilledEntries
-                                        ? t.noEntriesFilled
-                                        : undefined
-                                }
                             >
-                                <IconDeviceFloppy className="w-4 h-4 mr-2" />
+                                <IconDeviceFloppy className="w-3.5 h-3.5 mr-1.5" />
                                 {t.saveTemplate}
                             </Button>
+
                             <Button
-                                onClick={() => {
-                                    if (
-                                        confirm(
-                                            'Clear all saved data? This cannot be undone.',
-                                        )
-                                    ) {
-                                        clearData();
-                                        window.location.reload();
-                                    }
-                                }}
+                                onClick={() => { if (confirm('Clear all?')) { clearData(); window.location.reload(); } }}
                                 variant="ghost"
-                                className="h-10 px-4 font-bold transition-all active:scale-95 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                size="icon"
+                                className="h-9 w-9 text-destructive hover:bg-destructive/10"
+                                title={t.clearData}
                             >
-                                <IconTrash className="w-4 h-4 mr-2" />
-                                {t.clearData}
+                                <IconTrash className="w-4 h-4" />
                             </Button>
                         </div>
-                    </CardContent>
-                </Card>
-
-                {/* Table - High Precision */}
-                <div className="bg-card border-2 border-border shadow-2xl shadow-foreground/5 overflow-hidden flex flex-col flex-1 min-h-0">
-                    <div className="overflow-y-auto w-full h-full custom-scrollbar">
-                        <Table>
-                            <TableHeader className="bg-muted/80 sticky top-0 z-10">
-                                <TableRow className="hover:bg-transparent border-b-2">
-                                    <TableHead className="w-[100px] h-12 pl-8 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                        {t.date}
-                                    </TableHead>
-                                    <TableHead className="w-[180px] h-12 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                        {t.day}
-                                    </TableHead>
-                                    <TableHead className="h-12 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                        {t.project}
-                                    </TableHead>
-                                    <TableHead className="w-[100px] h-12 pr-8 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">
-                                        {t.hours}
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isLoading && (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={4}
-                                            className="h-32 text-center text-muted-foreground animate-pulse font-bold tracking-widest text-xs"
-                                        >
-                                            LOADING CALENDAR...
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                                {!isLoading &&
-                                    entries.map((entry, idx) => (
-                                        <TableRow
-                                            key={idx}
-                                            className={cn(
-                                                'group border-border transition-colors hover:bg-muted/20',
-                                                entry.isHoliday &&
-                                                    'bg-primary/5',
-                                                entry.isWeekend &&
-                                                    'bg-muted/10',
-                                            )}
-                                        >
-                                            <TableCell className="font-mono text-[10px] text-muted-foreground pl-8 select-none py-2">
-                                                {entry.date
-                                                    .split('-')
-                                                    .slice(1)
-                                                    .join('/')}
-                                            </TableCell>
-                                            <TableCell className="py-2">
-                                                <div className="flex items-center gap-2">
-                                                    <span
-                                                        className={cn(
-                                                            'text-[10px] font-bold uppercase tracking-tight',
-                                                            entry.isHoliday
-                                                                ? 'text-primary'
-                                                                : entry.isWeekend
-                                                                  ? 'text-muted-foreground/50'
-                                                                  : 'text-foreground',
-                                                        )}
-                                                    >
-                                                        {
-                                                            entry.day.split(
-                                                                ' ',
-                                                            )[0]
-                                                        }
-                                                    </span>
-                                                    {entry.isHoliday && (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className="text-[7px] font-black text-primary border-primary/20 bg-primary/10 px-1 py-0 leading-none uppercase tracking-tighter rounded-none"
-                                                        >
-                                                            {entry.day.match(
-                                                                /\((.*)\)/,
-                                                            )?.[1] || 'Holiday'}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="py-2">
-                                                <input
-                                                    type="text"
-                                                    value={entry.project}
-                                                    onChange={(e) =>
-                                                        handleEntryChange(
-                                                            idx,
-                                                            'project',
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    className="w-full bg-transparent border-none focus:ring-0 focus:outline-none p-0 text-sm font-medium text-foreground placeholder:text-muted-foreground/30"
-                                                    placeholder="..."
-                                                />
-                                            </TableCell>
-                                            <TableCell className="pr-8 py-2">
-                                                <input
-                                                    type="text"
-                                                    value={entry.hours}
-                                                    onChange={(e) =>
-                                                        handleEntryChange(
-                                                            idx,
-                                                            'hours',
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    className="w-full bg-transparent border-none focus:ring-0 focus:outline-none p-0 text-sm text-center tabular-nums font-bold text-foreground"
-                                                    placeholder="0"
-                                                />
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                            </TableBody>
-                        </Table>
                     </div>
                 </div>
+
+                {/* Scrollable Table Area */}
+                <div className="bg-background rounded-xl border border-border/60 flex flex-col flex-1 min-h-0 overflow-hidden shadow-sm">
+                    <div className="overflow-y-auto w-full h-full custom-scrollbar">
+                        <Suspense fallback={
+                            <div className="flex items-center justify-center h-full text-muted-foreground animate-pulse font-bold tracking-widest text-xs">
+                                LOADING CALENDAR...
+                            </div>
+                        }>
+                            <TimesheetGrid
+                                daysPromise={daysPromise}
+                                userData={persistedData.entries}
+                                onEntryChange={handleEntryChange}
+                                labels={{
+                                    date: t.date,
+                                    day: t.day,
+                                    project: t.project,
+                                    hours: t.hours
+                                }}
+                            />
+                        </Suspense>
+                    </div>
+                </div >
 
                 <footer className="text-center pb-4 opacity-30 select-none cursor-default shrink-0">
                     <p className="text-[9px] font-serif italic text-muted-foreground tracking-[1em] uppercase">
@@ -861,6 +633,6 @@ export default function TimesheetV2() {
                     </DialogContent>
                 </Dialog>
             </div>
-        </div>
+        </div >
     );
 }
