@@ -8,7 +8,11 @@ A minimalist, professional timesheet application built with Next.js 15 and React
 - 🇵🇱 **Polish Holiday Support** - Automatic Polish public holiday detection
 - 🌍 **Multi-language** - Polish and English interface
 - 📄 **PDF Export** - Generate professional single-page PDF timesheets
+- 📊 **Excel/CSV Export** - Export data to Excel or CSV formats
 - 🖼️ **Custom Logo** - Upload your company logo for personalized PDFs
+- 💾 **Data Persistence** - Auto-save to localStorage, restore on reload
+- ⌨️ **Keyboard Shortcuts** - Ctrl+S (download), Ctrl+P (preview), Ctrl+Shift+A (apply all)
+- 📋 **Copy Previous Month** - Copy entries from previous month
 - 🌙 **Dark Mode** - Clean dark theme with sharp, minimalist design
 
 ## Tech Stack
@@ -16,6 +20,7 @@ A minimalist, professional timesheet application built with Next.js 15 and React
 - **Framework**: Next.js 16, React 19
 - **Styling**: Tailwind CSS v4, Shadcn UI (Base UI)
 - **PDF Generation**: jsPDF with autoTable
+- **Excel**: xlsx library
 - **Linting/Formatting**: Biome
 - **Package Manager**: Bun
 
@@ -38,6 +43,15 @@ bun run format
 bun run build
 ```
 
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+S` | Download PDF |
+| `Ctrl+P` | Preview PDF |
+| `Ctrl+Shift+A` | Apply defaults to all |
+| `Esc` | Close preview dialog |
+
 ## Project Structure
 
 ```
@@ -49,15 +63,13 @@ timesheet-v2/
 ├── components/          # Shadcn UI components
 ├── lib/                 # Utilities and services
 │   ├── pdfGenerator.ts  # PDF generation with Roboto font
+│   ├── excelGenerator.ts # Excel/CSV export
 │   ├── translations.ts  # i18n strings
 │   ├── holidayService.ts # Polish holiday API
+│   ├── usePersistedData.ts # localStorage hook
 │   └── fonts.ts         # Embedded Roboto fonts (base64)
 └── biome.json           # Biome config
 ```
-
-## Screenshots
-
-The application features a clean, minimalist interface with sharp corners and a monochrome color palette.
 
 ## License
 

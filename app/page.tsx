@@ -3,9 +3,12 @@
 import {
     IconBuilding,
     IconCalendar,
+    IconCopy,
     IconDeviceFloppy,
     IconDownload,
     IconEye,
+    IconFileSpreadsheet,
+    IconFileText,
     IconLoader2,
     IconPhoto,
     IconRocket,
@@ -41,6 +44,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { generateCSV, generateExcel } from '@/lib/excelGenerator';
 import { fetchHolidays } from '@/lib/holidayService';
 import {
     generatePDF,
@@ -48,6 +52,7 @@ import {
     type TimesheetEntry,
 } from '@/lib/pdfGenerator';
 import { type Language, TRANSLATIONS } from '@/lib/translations';
+import { usePersistedData } from '@/lib/usePersistedData';
 import { cn } from '@/lib/utils';
 
 export default function TimesheetV2() {
@@ -64,6 +69,72 @@ export default function TimesheetV2() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [logo, setLogo] = useState<string | null>(null);
+
+    // Persistence hook
+    const {
+        data: persistedData,
+        isLoaded,
+        saveData,
+        saveEntry,
+        clearData,
+    } = usePersistedData();
+
+    // Restore persisted data on load
+    useEffect(() => {
+        if (isLoaded) {
+            setClient(persistedData.client);
+            setPerson(persistedData.person);
+            setDefaultProj(persistedData.defaultProj);
+            setDefaultHours(persistedData.defaultHours);
+            setLang(persistedData.lang);
+            setLogo(persistedData.logo);
+        }
+    }, [isLoaded, persistedData]);
+
+    // Keyboard shortcuts
+    // biome-ignore lint/correctness/useExhaustiveDependencies: handlers are stable or deliberately use current state
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ctrl+S - Download PDF
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                handleDownload();
+            }
+            // Ctrl+P - Preview PDF
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                handlePreview();
+            }
+            // Ctrl+Shift+A - Apply to all
+            if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+                e.preventDefault();
+                handleApplyAll();
+            }
+            // Esc - Close dialog
+            if (e.key === 'Escape' && isPreviewOpen) {
+                setIsPreviewOpen(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isPreviewOpen]);
+
+    // Auto-save form fields
+    useEffect(() => {
+        if (isLoaded) {
+            saveData({ client, person, defaultProj, defaultHours, lang, logo });
+        }
+    }, [
+        client,
+        person,
+        defaultProj,
+        defaultHours,
+        lang,
+        logo,
+        isLoaded,
+        saveData,
+    ]);
 
     const t = TRANSLATIONS[lang];
 
@@ -94,9 +165,19 @@ export default function TimesheetV2() {
                 isHoliday,
             });
         }
-        setEntries(newEntries);
+
+        // Restore persisted entry data
+        const restoredEntries = newEntries.map((entry) => {
+            const saved = persistedData.entries[entry.date];
+            if (saved) {
+                return { ...entry, project: saved.project, hours: saved.hours };
+            }
+            return entry;
+        });
+
+        setEntries(restoredEntries);
         setIsLoading(false);
-    }, [year, month, lang]);
+    }, [year, month, lang, persistedData.entries]);
 
     useEffect(() => {
         updateEntries();
@@ -117,6 +198,37 @@ export default function TimesheetV2() {
         );
     };
 
+    const handleCopyPreviousMonth = () => {
+        // Calculate previous month
+        let prevMonth = month - 1;
+        let prevYear = year;
+        if (prevMonth < 1) {
+            prevMonth = 12;
+            prevYear = year - 1;
+        }
+
+        // Get entries from previous month from persisted data
+        setEntries((prev) =>
+            prev.map((entry) => {
+                // Find matching day from previous month
+                const day = parseInt(entry.date.split('-')[2], 10);
+                const prevDate = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const prevEntry = persistedData.entries[prevDate];
+
+                if (prevEntry && !entry.isWeekend && !entry.isHoliday) {
+                    // Save to persistence
+                    saveEntry(entry.date, prevEntry.project, prevEntry.hours);
+                    return {
+                        ...entry,
+                        project: prevEntry.project,
+                        hours: prevEntry.hours,
+                    };
+                }
+                return entry;
+            }),
+        );
+    };
+
     const handleEntryChange = (
         index: number,
         field: keyof TimesheetEntry,
@@ -125,6 +237,11 @@ export default function TimesheetV2() {
         setEntries((prev) => {
             const updated = [...prev];
             updated[index] = { ...updated[index], [field]: value };
+
+            // Persist entry data
+            const entry = updated[index];
+            saveEntry(entry.date, entry.project, entry.hours);
+
             return updated;
         });
     };
@@ -161,6 +278,16 @@ export default function TimesheetV2() {
         } finally {
             setIsExporting(false);
         }
+    };
+
+    const handleExportExcel = () => {
+        const data: TimesheetData = { client, person, year, month, entries };
+        generateExcel(data, lang);
+    };
+
+    const handleExportCSV = () => {
+        const data: TimesheetData = { client, person, year, month, entries };
+        generateCSV(data, lang);
     };
 
     const handlePreview = async () => {
@@ -257,6 +384,24 @@ export default function TimesheetV2() {
                                     <IconDownload className="w-5 h-5 mr-2" />
                                 )}
                                 {t.download}
+                            </Button>
+                            <Button
+                                onClick={handleExportExcel}
+                                variant="outline"
+                                size="lg"
+                                className="h-12 px-4 font-bold tracking-tight active:scale-95 transition-all border-2"
+                            >
+                                <IconFileSpreadsheet className="w-5 h-5 mr-2" />
+                                {t.exportExcel}
+                            </Button>
+                            <Button
+                                onClick={handleExportCSV}
+                                variant="outline"
+                                size="lg"
+                                className="h-12 px-4 font-bold tracking-tight active:scale-95 transition-all border-2"
+                            >
+                                <IconFileText className="w-5 h-5 mr-2" />
+                                {t.exportCSV}
                             </Button>
                         </div>
                     </div>
@@ -467,6 +612,31 @@ export default function TimesheetV2() {
                             >
                                 <IconRocket className="w-5 h-5 mr-2" />
                                 {t.apply}
+                            </Button>
+                            <Button
+                                onClick={handleCopyPreviousMonth}
+                                variant="outline"
+                                className="h-10 px-4 font-bold transition-all active:scale-95 border-2"
+                            >
+                                <IconCopy className="w-4 h-4 mr-2" />
+                                {t.copyPreviousMonth}
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    if (
+                                        confirm(
+                                            'Clear all saved data? This cannot be undone.',
+                                        )
+                                    ) {
+                                        clearData();
+                                        window.location.reload();
+                                    }
+                                }}
+                                variant="ghost"
+                                className="h-10 px-4 font-bold transition-all active:scale-95 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                                <IconTrash className="w-4 h-4 mr-2" />
+                                {t.clearData}
                             </Button>
                         </div>
                     </CardContent>

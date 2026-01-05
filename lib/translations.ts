@@ -25,6 +25,10 @@ export interface TranslationStrings {
     timesheetLabel: string;
     branding: string;
     logo: string;
+    clearData: string;
+    exportExcel: string;
+    exportCSV: string;
+    copyPreviousMonth: string;
 }
 
 export const TRANSLATIONS: Record<Language, TranslationStrings> = {
@@ -53,6 +57,10 @@ export const TRANSLATIONS: Record<Language, TranslationStrings> = {
         timesheetLabel: 'TIMESHEET',
         branding: 'Minimalist Monochrome Branding',
         logo: 'Company Logo',
+        clearData: 'Clear Data',
+        exportExcel: 'Excel',
+        exportCSV: 'CSV',
+        copyPreviousMonth: 'Copy Previous',
     },
     PL: {
         title: 'Karta Pracy',
@@ -79,5 +87,9 @@ export const TRANSLATIONS: Record<Language, TranslationStrings> = {
         timesheetLabel: 'KARTA PRACY',
         branding: 'Logo Minimalistyczne',
         logo: 'Logo Firmy',
+        clearData: 'Wyczyść dane',
+        exportExcel: 'Excel',
+        exportCSV: 'CSV',
+        copyPreviousMonth: 'Kopiuj poprz.',
     },
 };
