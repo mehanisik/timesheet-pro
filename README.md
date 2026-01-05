@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Timesheet Pro V2
+
+A minimalist, professional timesheet application built with Next.js 15 and React 19.
+
+## Features
+
+- 📋 **Monthly Timesheet Management** - Track daily hours with project assignments
+- 🇵🇱 **Polish Holiday Support** - Automatic Polish public holiday detection
+- 🌍 **Multi-language** - Polish and English interface
+- 📄 **PDF Export** - Generate professional single-page PDF timesheets
+- 🖼️ **Custom Logo** - Upload your company logo for personalized PDFs
+- 🌙 **Dark Mode** - Clean dark theme with sharp, minimalist design
+
+## Tech Stack
+
+- **Framework**: Next.js 16, React 19
+- **Styling**: Tailwind CSS v4, Shadcn UI (Base UI)
+- **PDF Generation**: jsPDF with autoTable
+- **Linting/Formatting**: Biome
+- **Package Manager**: Bun
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Install dependencies
+bun install
+
+# Run development server
+bun run dev
+
+# Lint code
+bun run lint
+
+# Format code
+bun run format
+
+# Build for production
+bun run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Project Structure
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+timesheet-v2/
+├── app/                 # Next.js app directory
+│   ├── page.tsx         # Main timesheet component
+│   ├── layout.tsx       # Root layout
+│   └── globals.css      # Global styles & theme
+├── components/          # Shadcn UI components
+├── lib/                 # Utilities and services
+│   ├── pdfGenerator.ts  # PDF generation with Roboto font
+│   ├── translations.ts  # i18n strings
+│   ├── holidayService.ts # Polish holiday API
+│   └── fonts.ts         # Embedded Roboto fonts (base64)
+└── biome.json           # Biome config
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Screenshots
 
-## Learn More
+The application features a clean, minimalist interface with sharp corners and a monochrome color palette.
 
-To learn more about Next.js, take a look at the following resources:
+## License
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Private / Personal Use
