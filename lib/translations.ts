@@ -103,6 +103,5 @@ export const TRANSLATIONS: Record<Language, TranslationStrings> = {
         loadTemplate: 'Wczytaj szablon',
         noEntriesFilled: 'Najpierw wypełnij wpisy',
         documentRef: 'Numer Ref.',
-    }
-
+    },
 };

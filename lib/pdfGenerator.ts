@@ -30,7 +30,6 @@ export async function generatePDF(
     const t = TRANSLATIONS[lang];
     const doc = new jsPDF();
 
-
     doc.addFileToVFS('Roboto-Regular.ttf', ROBOTO_REGULAR);
     doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
 
@@ -41,13 +40,14 @@ export async function generatePDF(
 
     const pageWidth = doc.internal.pageSize.getWidth();
 
-
     const totalHours = data.entries.reduce(
         (sum, e) => sum + (Number.parseFloat(e.hours) || 0),
         0,
     );
 
-    const docRef = data.customRef || `TS-${data.year}${String(data.month).padStart(2, '0')}-${Date.now().toString(36).toUpperCase().slice(-4)}`;
+    const docRef =
+        data.customRef ||
+        `TS-${data.year}${String(data.month).padStart(2, '0')}-${Date.now().toString(36).toUpperCase().slice(-4)}`;
     const generatedDate = new Date().toLocaleDateString(
         lang === 'PL' ? 'pl-PL' : 'en-US',
         {
@@ -61,10 +61,8 @@ export async function generatePDF(
         { month: 'long', year: 'numeric' },
     );
 
-
     doc.setFillColor(25, 25, 25);
     doc.rect(0, 0, pageWidth, 32, 'F');
-
 
     if (data.logo) {
         try {
@@ -82,7 +80,6 @@ export async function generatePDF(
         doc.text('TIMESHEET PRO', 12, 18);
     }
 
-
     doc.setFontSize(18);
     doc.setFont('Roboto', 'bold');
     doc.setTextColor(255, 255, 255);
@@ -94,10 +91,8 @@ export async function generatePDF(
     doc.text(`Ref: ${docRef}`, pageWidth - 12, 22, { align: 'right' });
     doc.text(generatedDate, pageWidth - 12, 27, { align: 'right' });
 
-
     const cardY = 38;
     const cardH = 22;
-
 
     doc.setFillColor(250, 250, 250);
     doc.roundedRect(10, cardY, (pageWidth - 30) / 2, cardH, 2, 2, 'F');
@@ -114,7 +109,6 @@ export async function generatePDF(
     doc.text(data.client || '—', 50, cardY + 6);
     doc.text(data.person || '—', 50, cardY + 15);
 
-
     const rightCardX = 10 + (pageWidth - 30) / 2 + 10;
     doc.setFillColor(250, 250, 250);
     doc.roundedRect(rightCardX, cardY, (pageWidth - 30) / 2, cardH, 2, 2, 'F');
@@ -129,17 +123,17 @@ export async function generatePDF(
     doc.setFont('Roboto', 'bold');
     doc.text(monthName, rightCardX + 35, cardY + 6);
 
-
     doc.setFontSize(7);
     doc.setTextColor(120, 120, 120);
     doc.setFont('Roboto', 'normal');
-    const workedDays = data.entries.filter((e) => Number.parseFloat(e.hours) > 0).length;
+    const workedDays = data.entries.filter(
+        (e) => Number.parseFloat(e.hours) > 0,
+    ).length;
     const statsText =
         lang === 'PL'
             ? `${workedDays} przepracowanych dni`
             : `${workedDays} worked days`;
     doc.text(statsText, rightCardX + 5, cardY + 15);
-
 
     const tableHeaders = [t.date, t.day, t.project, t.hours];
     const tableData = data.entries.map((e) => {
@@ -235,9 +229,7 @@ export async function generatePDF(
     const finalY = (doc as any).lastAutoTable.finalY;
     const pageHeight = doc.internal.pageSize.getHeight();
 
-
     const signatureY = Math.min(finalY + 8, pageHeight - 22);
-
 
     doc.setDrawColor(180, 180, 180);
     doc.setLineWidth(0.3);
@@ -248,7 +240,6 @@ export async function generatePDF(
     doc.setTextColor(100, 100, 100);
     doc.text(t.contractor, 55, signatureY + 11, { align: 'center' });
     doc.text(t.recipient, 155, signatureY + 11, { align: 'center' });
-
 
     doc.setFillColor(248, 248, 248);
     doc.rect(0, pageHeight - 8, pageWidth, 8, 'F');

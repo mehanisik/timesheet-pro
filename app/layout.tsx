@@ -27,7 +27,8 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
     metadataBase: new URL('https://timesheet-v2.vercel.app'),
     title: {
-        default: 'Timesheet Pro V2 | Minimalist & Professional Timesheet Generator',
+        default:
+            'Timesheet Pro V2 | Minimalist & Professional Timesheet Generator',
         template: '%s | Timesheet Pro V2',
     },
     description:
@@ -35,7 +36,16 @@ export const metadata: Metadata = {
     applicationName: 'Timesheet Pro V2',
     authors: [{ name: 'Timesheet Team' }],
     generator: 'Next.js',
-    keywords: ['timesheet', 'invoice', 'freelancer', 'contractor', 'pdf generator', 'excel export', 'time tracking', 'work log'],
+    keywords: [
+        'timesheet',
+        'invoice',
+        'freelancer',
+        'contractor',
+        'pdf generator',
+        'excel export',
+        'time tracking',
+        'work log',
+    ],
     referrer: 'origin-when-cross-origin',
     creator: 'Timesheet Team',
     publisher: 'Timesheet Team',
@@ -46,7 +56,8 @@ export const metadata: Metadata = {
     },
     openGraph: {
         title: 'Timesheet Pro V2 | Professional Timesheet Management',
-        description: 'Generate professional timesheets in seconds. Export to PDF & Excel. Perfect for freelancers and IT consultants.',
+        description:
+            'Generate professional timesheets in seconds. Export to PDF & Excel. Perfect for freelancers and IT consultants.',
         url: 'https://timesheet-v2.vercel.app',
         siteName: 'Timesheet Pro V2',
         locale: 'en_US',
@@ -63,7 +74,8 @@ export const metadata: Metadata = {
     twitter: {
         card: 'summary_large_image',
         title: 'Timesheet Pro V2 | Minimalist Timesheet Generator',
-        description: 'Create and export professional timesheets instantly. No account needed.',
+        description:
+            'Create and export professional timesheets instantly. No account needed.',
         images: ['/og-image.png'], // Ensure this exists
     },
     icons: {
@@ -101,8 +113,10 @@ export default function RootLayout({
             price: '0',
             priceCurrency: 'USD',
         },
-        description: 'A minimalist and professional timesheet management tool for freelancers and contractors.',
-        featureList: 'PDF Export, Excel Export, CSV Export, Holiday Detection, Local Storage Persistence',
+        description:
+            'A minimalist and professional timesheet management tool for freelancers and contractors.',
+        featureList:
+            'PDF Export, Excel Export, CSV Export, Holiday Detection, Local Storage Persistence',
     };
 
     return (

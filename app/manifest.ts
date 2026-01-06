@@ -1,10 +1,11 @@
-import { MetadataRoute } from 'next';
+import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
     return {
         name: 'Timesheet Pro V2',
         short_name: 'Timesheet',
-        description: 'Advanced monochrome timesheet management for professionals.',
+        description:
+            'Advanced monochrome timesheet management for professionals.',
         start_url: '/',
         display: 'standalone',
         background_color: '#ffffff',

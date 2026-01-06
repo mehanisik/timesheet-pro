@@ -10,9 +10,11 @@ export async function fetchHolidays(
 ): Promise<Record<string, string>> {
     const cacheKey = `holidays-${year}-${countryCode}`;
     try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-            return JSON.parse(cached);
+        if (typeof window !== 'undefined') {
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                return JSON.parse(cached);
+            }
         }
 
         const response = await fetch(
@@ -29,7 +31,9 @@ export async function fetchHolidays(
             {} as Record<string, string>,
         );
 
-        localStorage.setItem(cacheKey, JSON.stringify(mapped));
+        if (typeof window !== 'undefined') {
+            localStorage.setItem(cacheKey, JSON.stringify(mapped));
+        }
         return mapped;
     } catch (error) {
         console.error('Error fetching holidays:', error);

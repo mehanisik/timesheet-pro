@@ -11,6 +11,8 @@ export interface PersistedData {
     logo: string | null;
     holidayBank: string;
     customRef?: string;
+    year: number;
+    month: number;
     entries: Record<string, { project: string; hours: string }>; // keyed by date
     templates: Record<
         string,
@@ -30,6 +32,8 @@ const defaultData: PersistedData = {
     logo: null,
     holidayBank: 'PL',
     customRef: '',
+    year: 2025,
+    month: 1,
     entries: {},
     templates: {},
 };

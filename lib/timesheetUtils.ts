@@ -12,7 +12,7 @@ export async function getMonthDays(
     year: number,
     month: number,
     countryCode: string,
-    lang: string
+    lang: string,
 ): Promise<DayInfo[]> {
     const holidays = await fetchHolidays(year, countryCode);
     const daysInMonth = new Date(year, month, 0).getDate();
@@ -26,7 +26,10 @@ export async function getMonthDays(
 
         days.push({
             date: isoDate,
-            dayName: date.toLocaleDateString(lang === 'PL' ? 'pl-PL' : 'en-US', { weekday: 'long' }),
+            dayName: date.toLocaleDateString(
+                lang === 'PL' ? 'pl-PL' : 'en-US',
+                { weekday: 'long' },
+            ),
             isWeekend,
             holidayName,
             isHoliday: !!holidayName,

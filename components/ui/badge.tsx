@@ -41,7 +41,8 @@ function Badge({
             },
             props,
         ),
-        render,
+        // biome-ignore lint/suspicious/noExplicitAny: library type mismatch
+        render: render as any,
         state: {
             slot: 'badge',
             variant,
