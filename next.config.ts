@@ -28,7 +28,6 @@ const nextConfig: NextConfig = {
     taint: true,
     browserDebugInfoInTerminal: true,
     optimizePackageImports: [
-      'postprocessing',
       '@base-ui/react',
     ],
   },

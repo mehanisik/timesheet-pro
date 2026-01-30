@@ -33,6 +33,9 @@ export interface TranslationStrings {
     loadTemplate: string;
     noEntriesFilled: string;
     documentRef: string;
+    period: string;
+    projectShort: string;
+    totalShort: string;
 }
 
 export const TRANSLATIONS: Record<Language, TranslationStrings> = {
@@ -69,6 +72,9 @@ export const TRANSLATIONS: Record<Language, TranslationStrings> = {
         loadTemplate: 'Load template',
         noEntriesFilled: 'Fill in entries first',
         documentRef: 'Document Ref',
+        period: 'Period',
+        projectShort: 'Project',
+        totalShort: 'Total',
     },
     PL: {
         title: 'Karta czasu pracy',
@@ -103,5 +109,8 @@ export const TRANSLATIONS: Record<Language, TranslationStrings> = {
         loadTemplate: 'Wczytaj szablon',
         noEntriesFilled: 'Najpierw wypełnij wpisy',
         documentRef: 'Numer Ref.',
+        period: 'Okres',
+        projectShort: 'Projekt',
+        totalShort: 'Suma',
     },
 };

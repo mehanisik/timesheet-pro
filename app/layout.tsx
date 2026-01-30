@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono, Inter } from 'next/font/google';
+import { Geist, Geist_Mono } from 'next/font/google';
+import { ThemeProvider } from 'next-themes';
+import { Toaster } from 'sonner';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
-
 const geistSans = Geist({
-    variable: '--font-geist-sans',
+    variable: '--font-sans',
     subsets: ['latin'],
 });
 
@@ -120,7 +120,7 @@ export default function RootLayout({
     };
 
     return (
-        <html lang="en" className={inter.variable} suppressHydrationWarning>
+        <html lang="en" className={geistSans.variable} suppressHydrationWarning>
             <head>
                 <script
                     type="application/ld+json"
@@ -129,9 +129,25 @@ export default function RootLayout({
                 />
             </head>
             <body
-                className={`${geistSans.variable} ${geistMono.variable} antialiased dark`}
+                className={`${geistMono.variable} antialiased`}
+                suppressHydrationWarning
             >
-                {children}
+                <ThemeProvider
+                    attribute="class"
+                    defaultTheme="dark"
+                    enableSystem
+                    disableTransitionOnChange
+                >
+                    {children}
+                    <Toaster
+                        position="bottom-right"
+                        richColors
+                        closeButton
+                        toastOptions={{
+                            duration: 3000,
+                        }}
+                    />
+                </ThemeProvider>
             </body>
         </html>
     );

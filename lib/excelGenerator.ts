@@ -1,112 +1,112 @@
 import * as XLSX from 'xlsx';
 import type { TimesheetData } from './pdfGenerator';
+import type { Language } from './translations';
+import { TRANSLATIONS } from './translations';
 
-export function generateExcel(data: TimesheetData, lang: 'PL' | 'EN'): void {
-    const t = {
-        PL: {
-            date: 'Data',
-            day: 'Dzień',
-            project: 'Projekt',
-            hours: 'Godziny',
-            total: 'Suma',
-            client: 'Klient',
-            consultant: 'Konsultant',
-            period: 'Okres',
-        },
-        EN: {
-            date: 'Date',
-            day: 'Day',
-            project: 'Project',
-            hours: 'Hours',
-            total: 'Total',
-            client: 'Client',
-            consultant: 'Consultant',
-            period: 'Period',
-        },
-    }[lang];
+export function generateExcel(data: TimesheetData, lang: Language): void {
+    const t = TRANSLATIONS[lang];
 
-    // Create header rows
-    const headerRows = [
-        [t.client, data.client],
-        [t.consultant, data.person],
-        [t.period, `${data.month.toString().padStart(2, '0')}/${data.year}`],
-        [], // Empty row
-        [t.date, t.day, t.project, t.hours],
-    ];
-
-    // Create data rows
-    const dataRows = data.entries.map((entry) => [
-        entry.date,
-        entry.day.split(' (')[0], // Remove holiday name for cleaner export
-        entry.project,
-        entry.hours,
-    ]);
-
-    // Calculate total
+    const workedDays = data.entries.filter(
+        (e) => !e.isWeekend && !e.isHoliday && e.project.trim() !== '',
+    ).length;
     const totalHours = data.entries.reduce(
         (sum, e) => sum + (Number.parseFloat(e.hours) || 0),
         0,
     );
 
-    // Add total row
-    const totalRow = ['', '', t.total, totalHours.toFixed(1)];
-
-    // Combine all rows
-    const allRows = [...headerRows, ...dataRows, [], totalRow];
-
-    // Create worksheet
-    const ws = XLSX.utils.aoa_to_sheet(allRows);
-
-    // Set column widths
-    ws['!cols'] = [
-        { wch: 12 }, // Date
-        { wch: 15 }, // Day
-        { wch: 40 }, // Project
-        { wch: 10 }, // Hours
+    const headerRows: (string | number)[][] = [
+        [t.client, data.client],
+        [t.person, data.person],
+        [t.period, `${data.month.toString().padStart(2, '0')}/${data.year}`],
+        [],
+        [t.date, t.day, t.projectShort, t.hours],
     ];
 
-    // Create workbook
+    const dataRows = data.entries.map((entry) => [
+        entry.date,
+        entry.day.split(' (')[0],
+        entry.project,
+        Number.parseFloat(entry.hours) || 0,
+    ]);
+
+    const summaryRows: (string | number)[][] = [
+        [],
+        ['', '', t.totalShort, totalHours],
+        ['', '', lang === 'PL' ? 'Dni roboczych' : 'Working days', workedDays],
+    ];
+
+    const allRows = [...headerRows, ...dataRows, ...summaryRows];
+
+    const ws = XLSX.utils.aoa_to_sheet(allRows);
+
+    ws['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 42 }, { wch: 12 }];
+
+    const headerRowIdx = 4;
+    for (let c = 0; c < 4; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r: headerRowIdx, c });
+        if (ws[cellRef]) {
+            ws[cellRef].s = {
+                font: { bold: true },
+                fill: { fgColor: { rgb: '191919' } },
+            };
+        }
+    }
+
+    const totalRowIdx = headerRows.length + dataRows.length + 1;
+    for (let c = 0; c < 4; c++) {
+        const cellRef = XLSX.utils.encode_cell({ r: totalRowIdx, c });
+        if (ws[cellRef]) {
+            ws[cellRef].s = { font: { bold: true } };
+        }
+    }
+
+    const hoursCol = 3;
+    for (
+        let r = headerRows.length;
+        r < headerRows.length + dataRows.length;
+        r++
+    ) {
+        const cellRef = XLSX.utils.encode_cell({ r, c: hoursCol });
+        if (ws[cellRef]) {
+            ws[cellRef].z = '0.0';
+        }
+    }
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Timesheet');
 
-    // Generate filename
     const filename = `timesheet_${data.year}_${data.month.toString().padStart(2, '0')}.xlsx`;
-
-    // Download
     XLSX.writeFile(wb, filename);
 }
 
-export function generateCSV(data: TimesheetData, lang: 'PL' | 'EN'): void {
-    const t = {
-        PL: {
-            date: 'Data',
-            day: 'Dzień',
-            project: 'Projekt',
-            hours: 'Godziny',
-        },
-        EN: {
-            date: 'Date',
-            day: 'Day',
-            project: 'Project',
-            hours: 'Hours',
-        },
-    }[lang];
+export function generateCSV(data: TimesheetData, lang: Language): void {
+    const t = TRANSLATIONS[lang];
 
-    // Create CSV content
-    const headers = [t.date, t.day, t.project, t.hours].join(',');
+    const totalHours = data.entries.reduce(
+        (sum, e) => sum + (Number.parseFloat(e.hours) || 0),
+        0,
+    );
+
+    const headers = [t.date, t.day, t.projectShort, t.hours].join(',');
     const rows = data.entries.map((entry) =>
         [
             entry.date,
-            `"${entry.day.split(' (')[0]}"`, // Quote to handle commas
-            `"${entry.project}"`,
+            `"${entry.day.split(' (')[0]}"`,
+            `"${entry.project.replace(/"/g, '""')}"`,
             entry.hours,
         ].join(','),
     );
 
-    const csvContent = [headers, ...rows].join('\n');
+    const totalRow = ['', '', `"${t.totalShort}"`, totalHours.toFixed(1)].join(
+        ',',
+    );
 
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = [headers, ...rows, '', totalRow].join('\n');
+
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csvContent], {
+        type: 'text/csv;charset=utf-8;',
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

@@ -42,13 +42,27 @@ export function usePersistedData() {
     const [data, setData] = useState<PersistedData>(defaultData);
     const [isLoaded, setIsLoaded] = useState(false);
 
-    // Load from localStorage on mount
+    // Load from localStorage on mount — always reset year/month to current date
     useEffect(() => {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
         try {
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
                 const parsed = JSON.parse(stored);
-                setData({ ...defaultData, ...parsed });
+                setData({
+                    ...defaultData,
+                    ...parsed,
+                    year: currentYear,
+                    month: currentMonth,
+                });
+            } else {
+                setData((prev) => ({
+                    ...prev,
+                    year: currentYear,
+                    month: currentMonth,
+                }));
             }
         } catch (e) {
             console.error('Failed to load persisted data:', e);
@@ -108,7 +122,7 @@ export function usePersistedData() {
             entries: Record<string, { project: string; hours: string }>,
         ) => {
             setData((prev) => {
-                const id = Date.now().toString();
+                const id = crypto.randomUUID();
                 const updated = {
                     ...prev,
                     templates: {

@@ -1,7 +1,12 @@
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { type CellHookData } from 'jspdf-autotable';
 import { ROBOTO_BOLD, ROBOTO_REGULAR } from './fonts';
-import { type Language, TRANSLATIONS } from './translations';
+import type { Language } from './translations';
+import { TRANSLATIONS } from './translations';
+
+interface AutoTableDoc extends jsPDF {
+    lastAutoTable: { finalY: number };
+}
 
 export interface TimesheetEntry {
     date: string;
@@ -187,8 +192,7 @@ export async function generatePDF(
         alternateRowStyles: {
             fillColor: [252, 252, 252],
         },
-        // biome-ignore lint/suspicious/noExplicitAny: jspdf-autotable types
-        didParseCell: (cellData: any) => {
+        didParseCell: (cellData: CellHookData) => {
             const rowIndex = cellData.row.index;
             const entry = data.entries[rowIndex];
             if (cellData.section === 'body') {
@@ -225,8 +229,7 @@ export async function generatePDF(
         },
     });
 
-    // biome-ignore lint/suspicious/noExplicitAny: jspdf types
-    const finalY = (doc as any).lastAutoTable.finalY;
+    const finalY = (doc as AutoTableDoc).lastAutoTable.finalY;
     const pageHeight = doc.internal.pageSize.getHeight();
 
     const signatureY = Math.min(finalY + 8, pageHeight - 22);
